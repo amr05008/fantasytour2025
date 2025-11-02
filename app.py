@@ -11,6 +11,15 @@ from api_client import (
     seconds_to_time_str,
     time_str_to_seconds
 )
+# Import multi-race configuration
+from races_config import (
+    RACES,
+    DEFAULT_RACE,
+    get_race_config,
+    get_team_rosters,
+    get_all_races
+)
+# Keep team_config import for backwards compatibility
 from team_config import TEAM_ROSTERS, RACE_CONFIG
 
 # Page configuration
@@ -91,15 +100,17 @@ st.markdown(
 # ====================
 # COMPETITION CONFIGURATION
 # ====================
-# Toggle these settings to control winner display and completion status
-COMPETITION_CONFIG = {
-    "is_complete": True,  # Set to True when competition is finished
-    "winner_name": "Aaron",  # Name of the competition winner
-    "competition_name": "Tour de France 2025",
-    "total_stages": 21,
-    "completion_date": "July 27, 2025",
-    "show_celebration": True  # Show celebration banner and styling
-}
+# Generate dynamic competition config from race data
+def get_competition_config(race_config):
+    """Generate competition config from race config"""
+    return {
+        "is_complete": race_config['is_complete'],
+        "winner_name": race_config.get('winner'),
+        "competition_name": race_config['name'],
+        "total_stages": race_config['total_stages'],
+        "completion_date": race_config.get('completion_date'),
+        "show_celebration": race_config['is_complete']
+    }
 
 # Time conversion functions are now imported from api_client
 # (time_str_to_seconds and seconds_to_time_str)
@@ -111,14 +122,14 @@ def calculate_time_gap(leader_time, participant_time):
         return "Leader"
     return f"+{seconds_to_time_str(gap_seconds)}"
 
-def create_winner_banner():
+def create_winner_banner(competition_config):
     """Create a celebration banner for the competition winner"""
-    if not COMPETITION_CONFIG["is_complete"] or not COMPETITION_CONFIG["show_celebration"]:
+    if not competition_config["is_complete"] or not competition_config["show_celebration"]:
         return
-    
-    winner = COMPETITION_CONFIG["winner_name"]
-    competition = COMPETITION_CONFIG["competition_name"]
-    completion_date = COMPETITION_CONFIG["completion_date"]
+
+    winner = competition_config["winner_name"]
+    competition = competition_config["competition_name"]
+    completion_date = competition_config["completion_date"]
     
     st.markdown(f"""
     <div style="
@@ -202,23 +213,23 @@ def create_winner_banner():
     </style>
     """, unsafe_allow_html=True)
 
-def get_competition_title():
-    """Get the appropriate title based on competition status"""
-    base_title = "🚴 Sunshine's Fantasy TDF 2025"
-    
-    if COMPETITION_CONFIG["is_complete"]:
+def get_competition_title(race_config):
+    """Get the appropriate title based on race and completion status"""
+    base_title = f"🚴 Sunshine's Fantasy {race_config['short_name']}"
+
+    if race_config["is_complete"]:
         return f"{base_title} - COMPLETE ✅"
     else:
         return base_title
 
-def create_completion_status_card():
+def create_completion_status_card(competition_config):
     """Create a status card showing competition completion"""
-    if not COMPETITION_CONFIG["is_complete"]:
+    if not competition_config["is_complete"]:
         return
-    
-    winner = COMPETITION_CONFIG["winner_name"]
-    total_stages = COMPETITION_CONFIG["total_stages"]
-    completion_date = COMPETITION_CONFIG["completion_date"]
+
+    winner = competition_config["winner_name"]
+    total_stages = competition_config["total_stages"]
+    completion_date = competition_config["completion_date"]
     
     st.markdown(f"""
     <div style="
@@ -671,10 +682,16 @@ def create_riders_display(rider_details):
     with col3:
         st.metric("Teams", len(rider_details))
 
-def get_dark_theme_css():
-    """Return dark theme CSS with animated transitions"""
-    return """
+def get_dark_theme_css(leader_color="#FFD700"):
+    """Return dark theme CSS with animated transitions and dynamic leader color"""
+    # Use string replacement instead of f-string to avoid escaping all CSS braces
+    css_template = """
     <style>
+    /* CSS Variables for dynamic theming */
+    :root {
+        --leader-color: LEADER_COLOR_PLACEHOLDER;
+    }
+
     /* Global animations and transitions - excluding Plotly charts */
     *:not(.js-plotly-plot):not(.plotly):not(.main-svg):not(g):not(path):not(text):not(svg) {
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -710,7 +727,7 @@ def get_dark_theme_css():
     }
     
     .dark-leader-card {
-        background-color: #FFD700 !important;
+        background-color: var(--leader-color) !important;
         color: #000000 !important;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         transform: translateY(0);
@@ -751,7 +768,7 @@ def get_dark_theme_css():
         transition: all 0.3s ease;
     }
     .stProgress > div > div > div > div > div {
-        background-color: #FFD700 !important;
+        background-color: var(--leader-color) !important;
         transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         animation: progressPulse 1.5s ease-in-out infinite alternate;
     }
@@ -805,7 +822,7 @@ def get_dark_theme_css():
     div[data-testid="stButton"] > button:focus {
         background-color: #404040 !important;
         color: #ffffff !important;
-        box-shadow: 0 0 0 2px #FFD700 !important;
+        box-shadow: 0 0 0 2px var(--leader-color) !important;
     }
     .stSpinner {
         color: #ffffff !important;
@@ -834,9 +851,9 @@ def get_dark_theme_css():
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
     .stTabs [aria-selected="true"] {
-        background-color: #FFD700 !important;
+        background-color: var(--leader-color) !important;
         color: #000000 !important;
-        border: 1px solid #FFD700 !important;
+        border: 1px solid var(--leader-color) !important;
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
         animation: activeTabGlow 1s ease-in-out infinite alternate;
@@ -965,7 +982,7 @@ def get_dark_theme_css():
     button:focus {
         background-color: #404040 !important;
         color: #ffffff !important;
-        outline: 2px solid #FFD700 !important;
+        outline: 2px solid var(--leader-color) !important;
     }
     button:active {
         background-color: #606060 !important;
@@ -1235,22 +1252,80 @@ def get_dark_theme_css():
     }
     </style>
     """
+    return css_template.replace("LEADER_COLOR_PLACEHOLDER", leader_color)
 
 def main():
-    # Apply dark theme CSS
-    st.markdown(get_dark_theme_css(), unsafe_allow_html=True)
-    
+    # Initialize race selection in session state
+    if 'selected_race_id' not in st.session_state:
+        st.session_state.selected_race_id = DEFAULT_RACE
+
+    # ==================== RACE SELECTOR SIDEBAR ====================
+    st.sidebar.title("🏁 Race Selection")
+
+    # Helper function to check if race is currently in progress
+    def is_race_active(race):
+        """Check if a race is currently in progress"""
+        now = datetime.now().date()
+        try:
+            start = datetime.strptime(race['start_date'], '%Y-%m-%d').date()
+            end = datetime.strptime(race['end_date'], '%Y-%m-%d').date()
+            return start <= now <= end
+        except:
+            return False
+
+    # Get all races and create dropdown options
+    all_races = get_all_races()
+    race_options = {}
+    for race in all_races:
+        label = f"{race['leader_jersey_emoji']} {race['short_name']}"
+        if race['is_complete']:
+            label += " ✅"
+        elif is_race_active(race):
+            label += " 🔄"
+        race_options[race['id']] = label
+
+    # Race selector dropdown
+    selected_race_id = st.sidebar.selectbox(
+        "Select Race",
+        options=list(race_options.keys()),
+        format_func=lambda x: race_options[x],
+        index=list(race_options.keys()).index(st.session_state.selected_race_id) if st.session_state.selected_race_id in race_options else 0,
+        key='race_selector'
+    )
+
+    # Update session state if race changed
+    if selected_race_id != st.session_state.selected_race_id:
+        st.session_state.selected_race_id = selected_race_id
+        st.rerun()
+
+    # Get config for selected race
+    race_config = get_race_config(selected_race_id)
+    team_rosters = get_team_rosters(selected_race_id)
+
+    # Display race info in sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.markdown(f"**📅 Dates:** {race_config['start_date']} to {race_config['end_date']}")
+    st.sidebar.markdown(f"**🚴 Stages:** {race_config['total_stages']}")
+    if race_config['is_complete']:
+        st.sidebar.markdown(f"**🏆 Winner:** {race_config['winner']}")
+
+    # Apply dark theme CSS with dynamic leader color
+    st.markdown(get_dark_theme_css(leader_color=race_config['leader_color']), unsafe_allow_html=True)
+
+    # Generate competition config from race config
+    competition_config = get_competition_config(race_config)
+
     # Display winner banner if competition is complete
-    create_winner_banner()
-    
+    create_winner_banner(competition_config)
+
     # Title and header (dynamic based on completion status)
-    st.title(get_competition_title())
-    
+    st.title(get_competition_title(race_config))
+
     # Display completion status card if competition is complete
-    create_completion_status_card()
-    
+    create_completion_status_card(competition_config)
+
     # Subtitle
-    if COMPETITION_CONFIG["is_complete"]:
+    if competition_config["is_complete"]:
         st.markdown("### 🏁 Final Standings")
     else:
         st.markdown("### General Classification Standings")
@@ -1264,7 +1339,7 @@ def main():
     
     # Fetch and process data from procyclingstats API
     with st.spinner("Fetching latest standings from procyclingstats..."):
-        fantasy_data = fetch_fantasy_standings()
+        fantasy_data = fetch_fantasy_standings(race_url=race_config['race_url'])
 
     if fantasy_data is None:
         st.error("Unable to load standings data. Please check the API connection or ensure race data is available.")
@@ -1276,7 +1351,7 @@ def main():
     rider_details = fantasy_data['rider_details']
 
     # Fetch stage-by-stage data for charts
-    stage_by_stage_data = fetch_stage_by_stage_data(latest_stage)
+    stage_by_stage_data = fetch_stage_by_stage_data(latest_stage, race_url=race_config['race_url'])
     
     # Create main navigation tabs
     tab1, tab2, tab3 = st.tabs(["🏆 Current Standings", "📈 Gap Analysis", "👥 Team Riders"])
@@ -1285,16 +1360,16 @@ def main():
         # Create standings table - moved to top
         st.markdown("### 🏆 Current Standings")
         
-        # Custom CSS for Tour de France styling
-        st.markdown("""
+        # Custom CSS for leader styling (dynamic based on race)
+        st.markdown(f"""
         <style>
-        .leader-row {
-            background-color: #FFD700 !important;
+        .leader-row {{
+            background-color: {race_config['leader_color']} !important;
             font-weight: bold;
-        }
-        .standings-table {
+        }}
+        .standings-table {{
             font-size: 16px;
-        }
+        }}
         </style>
         """, unsafe_allow_html=True)
         
@@ -1310,11 +1385,11 @@ def main():
             # Apply yellow background for leader
             if position == 1:
                 # Dynamic label based on competition status
-                leader_label = "🏆 CHAMPION" if COMPETITION_CONFIG["is_complete"] else "👑 LEADER"
+                leader_label = "🏆 CHAMPION" if competition_config["is_complete"] else "👑 LEADER"
                 container = st.container()
                 with container:
                     st.markdown(f"""
-                    <div class="dark-leader-card" style="background-color: #FFD700; padding: 15px; border-radius: 8px; margin: 8px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div class="dark-leader-card" style="background-color: {race_config['leader_color']}; padding: 15px; border-radius: 8px; margin: 8px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span style="font-size: 24px; font-weight: bold; color: #000000;">🥇 {position}. {participant}</span>
                             <span style="font-size: 20px; font-weight: bold; color: #000000;">{time_str}</span>
@@ -1356,7 +1431,7 @@ def main():
         
         with col2:
             leader_name = sorted_participants[0][0]
-            leader_title = "Champion" if COMPETITION_CONFIG["is_complete"] else "Current Leader"
+            leader_title = "Champion" if competition_config["is_complete"] else "Current Leader"
             st.metric(leader_title, leader_name)
         
         with col3:
