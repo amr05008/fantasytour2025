@@ -302,14 +302,23 @@ def create_sharing_buttons():
 def create_cumulative_time_chart(stage_data, latest_stage):
     """Create cumulative time progression chart"""
     fig = go.Figure()
-    
+
     # Color scheme for participants
     colors = {
         'Jeremy': '#FFD700',  # Gold for leader styling
         'Leo': '#FF6B6B',
-        'Charles': '#4ECDC4', 
+        'Charles': '#4ECDC4',
         'Aaron': '#45B7D1',
         'Nate': '#96CEB4'
+    }
+
+    # Line styles for better visual distinction when lines overlap
+    line_styles = {
+        'Jeremy': 'solid',
+        'Leo': 'dash',
+        'Charles': 'dot',
+        'Aaron': 'dashdot',
+        'Nate': 'solid'
     }
     
     for participant, stages in stage_data.items():
@@ -334,16 +343,43 @@ def create_cumulative_time_chart(stage_data, latest_stage):
                     y=times_list,
                     mode='lines+markers',
                     name=participant,
-                    line=dict(color=colors.get(participant, '#FFFFFF'), width=3),
+                    line=dict(
+                        color=colors.get(participant, '#FFFFFF'),
+                        width=3,
+                        dash=line_styles.get(participant, 'solid')
+                    ),
                     marker=dict(size=8, color=colors.get(participant, '#FFFFFF')),
-                    hovertemplate='%{text}<extra></extra>',
-                    text=hover_text
+                    hovertemplate='<b>%{fullData.name}</b><br>Stage: %{x}<br>Time: %{customdata}<extra></extra>',
+                    customdata=[stages[stage]['time'] for stage in stages_list],
+                    visible=True,
+                    legendgroup=participant,
+                    showlegend=True
                 ))
     
+    # Calculate Y-axis range to zoom into the data (show differences better)
+    # Find min and max times across all participants
+    all_times = []
+    for participant, stages in stage_data.items():
+        if stages:
+            for stage in range(1, latest_stage + 1):
+                if stage in stages:
+                    all_times.append(stages[stage]['time_seconds'] / 3600)
+
+    if all_times:
+        min_time = min(all_times)
+        max_time = max(all_times)
+        # Add 10% padding for visual clarity
+        padding = (max_time - min_time) * 0.1
+        y_min = max(0, min_time - padding)  # Don't go below 0
+        y_max = max_time + padding
+    else:
+        y_min = 0
+        y_max = 250
+
     # Dark theme styling with mobile responsiveness
     fig.update_layout(
         title={
-            'text': 'Cumulative Time Progression by Stage',
+            'text': 'Cumulative Time Progression by Stage (Zoomed)',
             'x': 0.5,
             'font': {'size': 18, 'color': '#FFFFFF'}
         },
@@ -363,7 +399,8 @@ def create_cumulative_time_chart(stage_data, latest_stage):
         yaxis=dict(
             gridcolor='#404040',
             tickfont=dict(color='#FFFFFF', size=10),
-            title=dict(font=dict(color='#FFFFFF', size=12))
+            title=dict(font=dict(color='#FFFFFF', size=12)),
+            range=[y_min, y_max]  # Zoomed range
         ),
         legend=dict(
             font=dict(color='#FFFFFF', size=12),
@@ -374,8 +411,11 @@ def create_cumulative_time_chart(stage_data, latest_stage):
             yanchor="bottom",
             y=1.02,
             xanchor="center",
-            x=0.5
+            x=0.5,
+            itemclick='toggle',
+            itemdoubleclick='toggleothers'
         ),
+        hovermode='closest',
         margin=dict(l=40, r=40, t=80, b=40),
         height=350
     )
@@ -533,13 +573,13 @@ def create_gap_evolution_chart(stage_data, latest_stage):
                     gaps_list.append(gap_seconds / 60)  # Convert to minutes
             
             if stages_list and any(gap > 0 for gap in gaps_list):  # Don't show leader line
-                # Create custom hover text with exact gap times
-                hover_text = []
+                # Create customdata with formatted gap times
+                customdata = []
                 for i, stage in enumerate(stages_list):
                     gap_seconds = gaps_list[i] * 60  # Convert back to seconds
                     gap_time_str = calculate_time_gap(0, int(gap_seconds))  # Format as "+H:MM:SS"
-                    hover_text.append(f'<b>{participant}</b><br>Stage: {stage}<br>Gap to Leader: {gap_time_str}')
-                
+                    customdata.append(gap_time_str)
+
                 fig.add_trace(go.Scatter(
                     x=stages_list,
                     y=gaps_list,
@@ -547,8 +587,8 @@ def create_gap_evolution_chart(stage_data, latest_stage):
                     name=participant,
                     line=dict(color=colors.get(participant, '#FFFFFF'), width=3),
                     marker=dict(size=8, color=colors.get(participant, '#FFFFFF')),
-                    hovertemplate='%{text}<extra></extra>',
-                    text=hover_text
+                    hovertemplate='%{fullData.name}<br>Stage: %{x}<br>Gap: %{customdata}<extra></extra>',
+                    customdata=customdata
                 ))
     
     # Dark theme styling with mobile responsiveness
@@ -563,6 +603,13 @@ def create_gap_evolution_chart(stage_data, latest_stage):
         plot_bgcolor='#1e1e1e',
         paper_bgcolor='#1e1e1e',
         font=dict(color='#FFFFFF', size=11),
+        hovermode='closest',
+        hoverlabel=dict(
+            bgcolor='#2d2d2d',
+            font_size=12,
+            font_family='monospace',
+            font_color='#FFFFFF'
+        ),
         xaxis=dict(
             gridcolor='#404040',
             tickmode='linear',
@@ -1293,7 +1340,7 @@ def main():
     stage_by_stage_data = fetch_stage_by_stage_data(latest_stage)
     
     # Create main navigation tabs
-    tab1, tab2, tab3 = st.tabs(["🏆 Current Standings", "📊 Stage Analysis", "👥 Team Riders"])
+    tab1, tab2, tab3 = st.tabs(["🏆 Current Standings", "📈 Gap Analysis", "👥 Team Riders"])
     
     with tab1:
         # Create standings table - moved to top
@@ -1424,44 +1471,19 @@ def main():
         st.markdown("*🟡 Yellow highlight indicates the current General Classification leader*")
     
     with tab2:
-        # Stage Analysis Charts
-        st.markdown("### 📊 Stage-by-Stage Performance Analysis")
-        
+        # Stage Analysis - Gap Evolution Chart Only
+        st.markdown("### 📈 Gap Evolution from Leader")
+
         if latest_stage > 1 and stage_by_stage_data:
-            # Create chart selection
-            chart_option = st.selectbox(
-                "Select Analysis View:",
-                [
-                    "🏁 Cumulative Time Progression",
-                    "⚡ Individual Stage Performance", 
-                    "📈 Gap Evolution from Leader"
-                ]
+            st.plotly_chart(
+                create_gap_evolution_chart(stage_by_stage_data, latest_stage),
+                use_container_width=True
             )
-            
-            if chart_option == "🏁 Cumulative Time Progression":
-                st.plotly_chart(
-                    create_cumulative_time_chart(stage_by_stage_data, latest_stage),
-                    use_container_width=True
-                )
-                st.markdown('<p class="analysis-text" style="color: #ffffff !important; font-weight: bold;">Analysis:</p><p class="analysis-description" style="color: #e0e0e0 !important;">Shows each participant\'s total cumulative time progression across all completed stages.</p>', unsafe_allow_html=True)
-                
-            elif chart_option == "⚡ Individual Stage Performance":
-                st.plotly_chart(
-                    create_stage_performance_chart(stage_by_stage_data, latest_stage),
-                    use_container_width=True
-                )
-                st.markdown('<p class="analysis-text" style="color: #ffffff !important; font-weight: bold;">Analysis:</p><p class="analysis-description" style="color: #e0e0e0 !important;">Displays individual stage times to identify stage winners and performance patterns.</p>', unsafe_allow_html=True)
-                
-            elif chart_option == "📈 Gap Evolution from Leader":
-                st.plotly_chart(
-                    create_gap_evolution_chart(stage_by_stage_data, latest_stage),
-                    use_container_width=True
-                )
-                st.markdown('<p class="analysis-text" style="color: #ffffff !important; font-weight: bold;">Analysis:</p><p class="analysis-description" style="color: #e0e0e0 !important;">Tracks how time gaps between participants and the leader evolve over stages.</p>', unsafe_allow_html=True)
-        
+            st.markdown('<p class="analysis-text" style="color: #ffffff !important; font-weight: bold;">Analysis:</p><p class="analysis-description" style="color: #e0e0e0 !important;">Tracks how time gaps between participants and the leader evolve over stages. Each line shows a participant\'s gap to the leader at each stage. Click legend items to show/hide participants.</p>', unsafe_allow_html=True)
+
         else:
-            st.info("📊 Stage analysis will be available once multiple stages are completed.")
-            st.markdown('<p style="color: #e0e0e0;">Current stage data is insufficient for detailed analysis. Charts will appear as more stage data becomes available.</p>', unsafe_allow_html=True)
+            st.info("📊 Gap analysis will be available once multiple stages are completed.")
+            st.markdown('<p style="color: #e0e0e0;">Gap evolution will be shown as more stage data becomes available.</p>', unsafe_allow_html=True)
     
     with tab3:
         # Team Riders Display
