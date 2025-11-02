@@ -35,7 +35,7 @@ st.markdown("""
     <meta property="og:description" content="Track fantasy cycling results across Tour de France, Giro d'Italia, and Vuelta a España with real-time standings, stage analysis, and interactive charts." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://fantasytour.streamlit.app/" />
-    <meta property="og:image" content="attached_assets/ChatGPT Image Jul 22, 2025, 02_24_08 PM_1753208677017.png" />
+    <meta property="og:image" content="https://raw.githubusercontent.com/amr05008/fantasytour2025/main/public/images/fantasy-og.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:locale" content="en_US" />
@@ -45,7 +45,7 @@ st.markdown("""
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Sunshine Fantasy Grand Tours" />
     <meta name="twitter:description" content="Track fantasy cycling results across Tour de France, Giro d'Italia, and Vuelta a España with real-time standings and interactive charts." />
-    <meta name="twitter:image" content="attached_assets/ChatGPT Image Jul 22, 2025, 02_24_08 PM_1753208677017.png" />
+    <meta name="twitter:image" content="https://raw.githubusercontent.com/amr05008/fantasytour2025/main/public/images/fantasy-og.png" />
 
     <!-- Schema.org Structured Data -->
     <script type="application/ld+json">
